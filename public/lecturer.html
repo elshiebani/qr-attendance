@@ -31,11 +31,11 @@
             padding: 15px;
             border: 2px dashed #0d6efd;
             border-radius: 8px;
-            display: inline-block;
-        }
-        canvas {
-            width: 250px !important;
-            height: 250px !important;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 250px;
+            min-height: 250px;
         }
     </style>
 </head>
@@ -46,22 +46,31 @@
         <p>الرمز يتغير تلقائياً كل 5 ثوانٍ لمنع التداول</p>
         
         <div class="qr-box">
-            <canvas id="qr-canvas"></canvas>
+            <div id="qrcode"></div>
         </div>
     </div>
 
-    <!-- استدعاء المكتبات الرسمية عبر CDN -->
+    <!-- استدعاء المكتبات الموثوقة -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
     <script>
         const socket = io();
-        const canvas = document.getElementById('qr-canvas');
+        const qrContainer = document.getElementById('qrcode');
+        let qrCodeObj = null;
 
-        // استقبال الـ QR المحدث من السيرفر وعرضه فوراً
         socket.on('qr-update', (token) => {
-            QRCode.toCanvas(canvas, token, { width: 250 }, function (error) {
-                if (error) console.error("خطأ في رسم الـ QR:", error);
-            });
+            // تفريغ المربع أول مرة ثم إعادة الرسم
+            if (!qrCodeObj) {
+                qrContainer.innerHTML = '';
+                qrCodeObj = new QRCode(qrContainer, {
+                    text: token,
+                    width: 230,
+                    height: 230
+                });
+            } else {
+                qrCodeObj.makeCode(token);
+            }
         });
     </script>
 </body>
