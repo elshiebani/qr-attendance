@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شاشة المحاضر - تسجيل الحضور</title>
+    <title>شاشة المحاضر - إدارة الحضور</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -11,21 +11,28 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            padding: 20px;
             margin: 0;
         }
         .container {
             background: #ffffff;
-            padding: 30px;
+            padding: 25px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             text-align: center;
-            max-width: 450px;
-            width: 90%;
+            max-width: 500px;
+            width: 100%;
+            box-sizing: border-radius;
         }
         h2 { color: #333; margin-bottom: 5px; }
-        p { color: #666; font-size: 14px; margin-bottom: 25px; }
+        p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        .section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
         .qr-box {
             background: #fff;
             padding: 15px;
@@ -34,23 +41,56 @@
             display: inline-flex;
             justify-content: center;
             align-items: center;
-            min-width: 250px;
-            min-height: 250px;
+            min-width: 230px;
+            min-height: 230px;
         }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-success { background-color: #198754; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>امسح الرمز لتسجيل الحضور</h2>
-        <p>الرمز يتغير تلقائياً كل 5 ثوانٍ لمنع التداول</p>
-        
-        <div class="qr-box">
-            <div id="qrcode"></div>
+        <h2>شاشة المحاضر</h2>
+        <p>عرض رمز الـ QR وإدارة الحضور</p>
+
+        <!-- قسم رفع قائمة الطلاب Excel -->
+        <div class="section">
+            <h4>1. رفع قائمة الطلاب (Excel)</h4>
+            <input type="file" id="excelFile" accept=".xlsx, .xls">
+            <button onclick="uploadRoster()">رفع الملف لـ Supabase</button>
+            <div id="uploadStatus" style="font-size: 13px; margin-top: 5px;"></div>
+        </div>
+
+        <!-- قسم الـ QR -->
+        <div class="section">
+            <h4>2. رمز الحضور المباشر</h4>
+            <div class="qr-box">
+                <div id="qrcode"></div>
+            </div>
+        </div>
+
+        <!-- قسم تصدير التقرير -->
+        <div class="section">
+            <h4>3. تصدير كشف الحضور</h4>
+            <button class="btn-success" onclick="exportAttendance()">تنزيل شيت الحضور (Excel)</button>
         </div>
     </div>
 
-    <!-- استدعاء المكتبات الموثوقة -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -59,19 +99,42 @@
         const qrContainer = document.getElementById('qrcode');
         let qrCodeObj = null;
 
+        // استقبال وتحديث الـ QR
         socket.on('qr-update', (token) => {
-            // تفريغ المربع أول مرة ثم إعادة الرسم
             if (!qrCodeObj) {
                 qrContainer.innerHTML = '';
-                qrCodeObj = new QRCode(qrContainer, {
-                    text: token,
-                    width: 230,
-                    height: 230
-                });
+                qrCodeObj = new QRCode(qrContainer, { text: token, width: 220, height: 220 });
             } else {
                 qrCodeObj.makeCode(token);
             }
         });
+
+        // رفع ملف Excel
+        async function uploadRoster() {
+            const fileInput = document.getElementById('excelFile');
+            if (!fileInput.files[0]) {
+                alert("يرجى اختيار ملف Excel أولاً");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const response = await fetch('/api/upload-roster', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            const status = document.getElementById('uploadStatus');
+            status.innerText = result.message || result.error;
+            status.style.color = result.success ? "green" : "red";
+        }
+
+        // تصدير الحضور
+        function exportAttendance() {
+            window.location.href = '/api/export-attendance/1';
+        }
     </script>
 </body>
 </html>
