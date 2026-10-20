@@ -17,13 +17,19 @@ const upload = multer({ dest: 'uploads/' });
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- 1. الاتصال بقاعدة بيانات Supabase (PostgreSQL) ---
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Suluq2026Password@db.rkjbileaxqxxmbcyhooj.supabase.co:5432/postgres',
-    ssl: { rejectUnauthorized: false }
+// تحويل الزائر من الرابط الرئيسي تلقائياً إلى صفحة المحاضر
+app.get('/', (req, res) => {
+    res.redirect('/lecturer.html');
 });
 
-// --- 2. إنشاء الجداول العلاقية تلقائياً عند التشغيل ---
+// 1. الاتصال بقاعدة بيانات Supabase
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Suluq2026Password@db.rkjbileaxqxxmbcyhooj.supabase.co:5432/postgres',
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000
+});
+
+// 2. إنشاء الجداول العلاقية تلقائياً
 const initDb = async () => {
     try {
         await pool.query(`
@@ -66,9 +72,7 @@ const initDb = async () => {
 
 initDb();
 
-// --- 3. المسارات (API Routes) ---
-
-// جلب المحاضرين والمواد
+// 3. مسارات النظام (API Routes)
 app.get('/api/doctors', async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM doctors ORDER BY id ASC');
@@ -93,7 +97,6 @@ app.get('/api/courses', async (req, res) => {
     }
 });
 
-// إضافة محاضر ومادة
 app.post('/api/doctors', async (req, res) => {
     const { name } = req.body;
     try {
@@ -117,7 +120,6 @@ app.post('/api/courses', async (req, res) => {
     }
 });
 
-// رفع قائمة الطلاب من Excel
 app.post('/api/upload-roster', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'يرجى اختيار ملف Excel' });
 
@@ -146,7 +148,6 @@ app.post('/api/upload-roster', upload.single('file'), async (req, res) => {
     }
 });
 
-// بدء جلسة جديدة
 app.post('/api/start-session', async (req, res) => {
     const { course_id } = req.body;
     try {
@@ -154,13 +155,13 @@ app.post('/api/start-session', async (req, res) => {
             'INSERT INTO sessions (course_id) VALUES ($1) RETURNING id',
             [course_id]
         );
+        activeSessionId = rows[0].id;
         res.json({ sessionId: rows[0].id });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// تصدير كشف الحضور والغياب إلى ملف Excel
 app.get('/api/export-attendance/:sessionId', async (req, res) => {
     const sessionId = req.params.sessionId;
 
@@ -199,8 +200,8 @@ app.get('/api/export-attendance/:sessionId', async (req, res) => {
     }
 });
 
-// --- 4. Socket.io وتسجيل الحضور المباشر ---
-let activeSessionId = null;
+// 4. Socket.io وتوليد الـ QR
+let activeSessionId = 1; // جلسة افتراضية لضمان توليد الـ QR مباشرة عند فتح الصفحة
 
 io.on('connection', (socket) => {
     socket.on('set-active-session', (sessionId) => {
@@ -222,9 +223,9 @@ io.on('connection', (socket) => {
 
             socket.emit('attendance-response', { success: true, message: 'تم تسجيل حضورك بنجاح!' });
         } catch (err) {
-            if (err.code === '23505') { // كود التكرار في PostgreSQL (Unique Constraint)
+            if (err.code === '23505') {
                 socket.emit('attendance-response', { success: false, message: 'تم تسجيل حضورك سابقاً في هذه المحاضرة' });
-            } else if (err.code === '23503') { // رقم القيد غير موجود
+            } else if (err.code === '23503') {
                 socket.emit('attendance-response', { success: false, message: 'رقم القيد غير مسجل في قائمة المادة' });
             } else {
                 socket.emit('attendance-response', { success: false, message: 'رمز الـ QR انتهت صلاحيته، أعد المسح' });
@@ -233,7 +234,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// تحديث الـ QR تلقائياً كل 5 ثوانٍ
+// إرسال رمز QR يتغير كل 5 ثوانٍ
 setInterval(() => {
     if (activeSessionId) {
         const token = jwt.sign({ session: activeSessionId, time: Date.now() }, SECRET_KEY, { expiresIn: '10s' });
