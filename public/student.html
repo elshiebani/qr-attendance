@@ -1,53 +1,83 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تسجيل الحضور</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    #reader { width: 100%; max-width: 400px; margin: 20px auto; }
-    .status { font-weight: bold; font-size: 1.2rem; margin-top: 15px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الحضور - الطالب</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #198754;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        #reader { width: 100%; margin-top: 15px; }
+        #status { margin-top: 15px; font-weight: bold; }
+    </style>
 </head>
 <body>
-  <h3>تسجيل الحضور اليومي</h3>
-  <input type="text" id="studentId" placeholder="أدخل رقمك الدراسي" value="22001" style="padding: 8px; margin-bottom: 10px;">
-  
-  <div id="reader"></div>
-  <div id="status" class="status"></div>
 
-  <script>
-    function onScanSuccess(decodedText) {
-      const studentId = document.getElementById('studentId').value;
-      if(!studentId) {
-        alert("يرجى إدخال الرقم الدراسي أولاً");
-        return;
-      }
+    <div class="card">
+        <h3>تسجيل الحضور الذكي</h3>
+        <input type="text" id="studentId" placeholder="أدخل رقم القيد">
+        <button onclick="startScanner()">فتح الكاميرا ومسح الـ QR</button>
+        
+        <div id="reader"></div>
+        <div id="status"></div>
+    </div>
 
-      html5QrcodeScanner.clear();
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+        const socket = io();
+        let html5QrcodeScanner;
 
-      fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: decodedText, studentId: studentId })
-      })
-      .then(res => res.json())
-      .then(data => {
-        const statusDiv = document.getElementById('status');
-        if(data.success) {
-          statusDiv.style.color = "green";
-          statusDiv.innerText = data.message;
-        } else {
-          statusDiv.style.color = "red";
-          statusDiv.innerText = data.message;
+        function startScanner() {
+            const studentId = document.getElementById('studentId').value.trim();
+            if (!studentId) {
+                alert("يرجى كتابة رقم القيد أولاً");
+                return;
+            }
+
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render((decodedText) => {
+                // إرسال الـ Token ورقم القيد عبر الـ Socket
+                socket.emit('register-attendance', { token: decodedText, studentId: studentId });
+                html5QrcodeScanner.clear();
+            });
         }
-      });
-    }
 
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-    html5QrcodeScanner.render(onScanSuccess);
-  </script>
+        socket.on('attendance-response', (data) => {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = data.message;
+            statusDiv.style.color = data.success ? "green" : "red";
+        });
+    </script>
 </body>
 </html>
