@@ -12,23 +12,27 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            margin: 0;
         }
         .card {
             background: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 400px;
             text-align: center;
+            box-sizing: border-box;
         }
+        h3 { color: #333; margin-bottom: 15px; }
         input, button {
             width: 100%;
             padding: 12px;
             margin: 8px 0;
-            border-radius: 6px;
+            border-radius: 8px;
             border: 1px solid #ccc;
             box-sizing: border-box;
+            font-size: 15px;
         }
         button {
             background-color: #198754;
@@ -36,9 +40,11 @@
             font-weight: bold;
             border: none;
             cursor: pointer;
+            transition: background 0.2s;
         }
-        #reader { width: 100%; margin-top: 15px; }
-        #status { margin-top: 15px; font-weight: bold; }
+        button:hover { background-color: #157347; }
+        #reader { width: 100%; margin-top: 15px; border-radius: 8px; overflow: hidden; }
+        #status { margin-top: 15px; font-weight: bold; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -56,20 +62,45 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script>
         const socket = io();
-        let html5QrcodeScanner;
+        let html5QrCode;
 
-        function startScanner() {
+        async function startScanner() {
             const studentId = document.getElementById('studentId').value.trim();
             if (!studentId) {
                 alert("يرجى كتابة رقم القيد أولاً");
                 return;
             }
 
-            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            html5QrcodeScanner.render((decodedText) => {
-                // إرسال الـ Token ورقم القيد عبر الـ Socket
-                socket.emit('register-attendance', { token: decodedText, studentId: studentId });
-                html5QrcodeScanner.clear();
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = "جاري تشغيل الكاميرا...";
+            statusDiv.style.color = "#0d6efd";
+
+            if (html5QrCode) {
+                try { await html5QrCode.stop(); } catch(e) {}
+            }
+
+            html5QrCode = new Html5Qrcode("reader");
+
+            // إعدادات اختيار الكاميرا الخلفية (facingMode: "environment")
+            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, // طلب الكاميرا الخلفية تلقائياً
+                config,
+                (decodedText) => {
+                    // إرسال الرمز القارئ ورقم القيد للسيرفر
+                    socket.emit('register-attendance', { token: decodedText, studentId: studentId });
+                    html5QrCode.stop();
+                },
+                (errorMessage) => {
+                    // أخطاء القراءة أثناء البحث عن كود
+                }
+            ).catch(err => {
+                // في حال عدم توفر كاميرا خلفية يفتح المتاحة
+                html5QrCode.start({ facingMode: "user" }, config, (decodedText) => {
+                    socket.emit('register-attendance', { token: decodedText, studentId: studentId });
+                    html5QrCode.stop();
+                });
             });
         }
 
