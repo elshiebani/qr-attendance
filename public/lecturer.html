@@ -1,28 +1,68 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>شاشة المحاضر - رمز الحضور</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <style>
-    body { font-family: sans-serif; text-align: center; background: #f4f6f9; padding-top: 50px; }
-    #qrcode { display: inline-block; margin-top: 20px; padding: 20px; background: white; border-radius: 10px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شاشة المحاضر - تسجيل الحضور</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+        }
+        h2 { color: #333; margin-bottom: 5px; }
+        p { color: #666; font-size: 14px; margin-bottom: 25px; }
+        .qr-box {
+            background: #fff;
+            padding: 15px;
+            border: 2px dashed #0d6efd;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        canvas {
+            width: 250px !important;
+            height: 250px !important;
+        }
+    </style>
 </head>
 <body>
-  <h2>امسح الرمز لتسجيل الحضور</h2>
-  <p>الرمز يتغير تلقائياً كل 5 ثوانٍ لمنع التداول</p>
-  <div id="qrcode"></div>
 
-  <script>
-    const socket = io();
-    const qrContainer = document.getElementById("qrcode");
-    let qrcode = new QRCode(qrContainer, { width: 256, height: 256 });
+    <div class="container">
+        <h2>امسح الرمز لتسجيل الحضور</h2>
+        <p>الرمز يتغير تلقائياً كل 5 ثوانٍ لمنع التداول</p>
+        
+        <div class="qr-box">
+            <canvas id="qr-canvas"></canvas>
+        </div>
+    </div>
 
-    socket.on('new_qr', (data) => {
-      qrcode.makeCode(data.token);
-    });
-  </script>
+    <!-- استدعاء المكتبات الرسمية عبر CDN -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('qr-canvas');
+
+        // استقبال الـ QR المحدث من السيرفر وعرضه فوراً
+        socket.on('qr-update', (token) => {
+            QRCode.toCanvas(canvas, token, { width: 250 }, function (error) {
+                if (error) console.error("خطأ في رسم الـ QR:", error);
+            });
+        });
+    </script>
 </body>
 </html>
